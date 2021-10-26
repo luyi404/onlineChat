@@ -1,13 +1,15 @@
 package main
+
 import (
 	// "fmt"
 	"net"
 	"strings"
 )
+
 type User struct {
 	Name string
 	Addr string
-	C	chan string
+	C    chan string
 	conn net.Conn
 
 	server *Server
@@ -18,10 +20,10 @@ func NewUser(conn net.Conn, server *Server) *User {
 	userAddr := conn.RemoteAddr().String()
 
 	user := &User{
-		Name: userAddr,
-		Addr: userAddr,
-		C:    make(chan string),
-		conn: conn,
+		Name:   userAddr,
+		Addr:   userAddr,
+		C:      make(chan string),
+		conn:   conn,
 		server: server,
 	}
 
@@ -40,7 +42,7 @@ func (user *User) Online() {
 }
 
 //用户的下线业务
-func (user *User) Offline(){
+func (user *User) Offline() {
 	user.server.mapLock.Lock()
 	delete(user.server.OnlineMap, user.Name)
 	user.server.mapLock.Unlock()
@@ -48,11 +50,11 @@ func (user *User) Offline(){
 	user.server.BroadCast(user, "下线")
 }
 
-func (user *User) SendMsg(msg string){
+func (user *User) SendMsg(msg string) {
 	user.conn.Write([]byte(msg))
 }
 
-func (user *User) DoMessage(msg string){
+func (user *User) DoMessage(msg string) {
 	if msg == "who" {
 		//查询当前在线用户都有哪些
 		user.server.mapLock.Lock()
@@ -78,16 +80,35 @@ func (user *User) DoMessage(msg string){
 			user.Name = newName
 			user.SendMsg("宁已经变更用户名为: " + newName + "\n")
 		}
+	} else if len(msg) > 4 && msg[:3] == "to|" {
+		//先获取用户名
+		remoteName := strings.Split(msg, "|")[1]
+		if remoteName == "" {
+			user.SendMsg("私聊消息格式不对\n")
+			return
+		}
+		//再找User对象
+		remoteUser, ok := user.server.OnlineMap[remoteName]
+		if !ok {
+			user.SendMsg("用户不存在，请使用 \"who\" 命令来查询在线用户\n")
+			return
+		}
+		//获取消息内容并发送
+		content := strings.Split(msg, "|")[2]
+		if content == "" {
+			user.SendMsg("无消息内容，请重发\n")
+			return
+		}
+		remoteUser.SendMsg(user.Name + "私聊你说： " + content + "\n")
 	} else {
 		user.server.BroadCast(user, msg)
 	}
 }
 
-
 //监听channel
 func (user *User) ListenMessage() {
 	for {
-		msg := <- user.C
+		msg := <-user.C
 		user.conn.Write([]byte(msg + "\n"))
 	}
 }
