@@ -4,6 +4,7 @@ import (
 	"net"
 	"fmt"
 	"sync"
+	"io"
 )
 
 type Server struct {
@@ -33,12 +34,32 @@ func (this *Server) Handler(conn net.Conn) {
 
 	//用户上线了，而且应该直接广播
 	//加入表中
-	user := NewUser(conn)
-	this.mapLock.Lock()
-	this.OnlineMap[user.Name] = user
-	this.mapLock.Unlock()
+	user := NewUser(conn, this)
+	
+	user.Online()
 
-	this.BroadCast(user, "已上线")
+	//接受客户端发送的信息
+	go func(){
+		buf := make([]byte, 4096)
+		for {
+			n, err := conn.Read(buf)
+			if n==0 {
+				user.Offline()
+				return
+			}
+
+			if err != nil && err != io.EOF {
+				fmt.Println("Conn Read err:", err)
+				return
+			}
+
+			//提取用户的消息
+			msg := string(buf[:n-1])	//去掉了\n回车
+
+			user.DoMessage(msg)
+		}
+	}()
+
 }
 
 func (this *Server) BroadCast(user *User, msg string) {
