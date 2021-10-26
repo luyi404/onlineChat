@@ -2,6 +2,7 @@ package main
 import (
 	// "fmt"
 	"net"
+	"strings"
 )
 type User struct {
 	Name string
@@ -57,10 +58,26 @@ func (user *User) DoMessage(msg string){
 		user.server.mapLock.Lock()
 		user.SendMsg("在线的用户有：\n")
 		for _, eachuser := range user.server.OnlineMap {
-			onlineMsg := "[" + eachuser.Addr + "]" + user.Name + ":" + " 在线...\n"
+			onlineMsg := "[" + eachuser.Addr + "]" + eachuser.Name + ":" + " 在线...\n"
 			user.SendMsg(onlineMsg)
 		}
 		user.server.mapLock.Unlock()
+	} else if len(msg) > 7 && msg[:7] == "rename|" {
+		newName := strings.Split(msg, "|")[1]
+
+		//判断是不是重名了
+		_, ok := user.server.OnlineMap[newName]
+		if ok {
+			user.SendMsg("此用户名已被使用\n")
+		} else {
+			user.server.mapLock.Lock()
+			delete(user.server.OnlineMap, user.Name)
+			user.server.OnlineMap[newName] = user
+			user.server.mapLock.Unlock()
+
+			user.Name = newName
+			user.SendMsg("宁已经变更用户名为: " + newName + "\n")
+		}
 	} else {
 		user.server.BroadCast(user, msg)
 	}
@@ -68,9 +85,9 @@ func (user *User) DoMessage(msg string){
 
 
 //监听channel
-func (this *User) ListenMessage() {
+func (user *User) ListenMessage() {
 	for {
-		msg := <- this.C
-		this.conn.Write([]byte(msg + "\n"))
+		msg := <- user.C
+		user.conn.Write([]byte(msg + "\n"))
 	}
 }
