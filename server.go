@@ -68,7 +68,7 @@ func (this *Server) Handler(conn net.Conn) {
 		case <-isLive:
 			//当前活跃，应该重置
 
-		case <-time.After(time.Second * 100):
+		case <-time.After(time.Second * 180):
 			//已经超时了，关闭user
 			user.SendMsg("你太久不说话被踢了\n")
 			close(user.C)
